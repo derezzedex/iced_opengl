@@ -1,19 +1,17 @@
-use crate::{
-    quad, text, triangle, Defaults, Primitive, Quad, Settings, Transformation,
-    Viewport,
-};
-
-use iced_native::{
-    layout, mouse, Background, Color, Layout, Point, Rectangle, Vector, Widget,
-};
-
-mod widget;
+use crate::quad;
+use crate::text;
+use crate::triangle;
+use crate::{Quad, Settings, Transformation, Viewport};
+use iced_graphics::backend;
+use iced_graphics::Primitive;
+use iced_native::mouse;
+use iced_native::{Background, Font, Point, Rectangle, Size, Vector};
 
 /// A [`glow`] renderer.
 ///
 /// [`glow`]: https://github.com/grovesNL/glow
 #[derive(Debug)]
-pub struct Renderer {
+pub struct Backend {
     quad_pipeline: quad::Pipeline,
     text_pipeline: text::Pipeline,
     triangle_pipeline: triangle::Pipeline,
@@ -43,7 +41,7 @@ impl<'a> Layer<'a> {
     }
 }
 
-impl Renderer {
+impl Backend {
     /// Creates a new [`Renderer`].
     ///
     /// [`Renderer`]: struct.Renderer.html
@@ -399,57 +397,27 @@ impl Renderer {
     }
 }
 
-impl iced_native::Renderer for Renderer {
-    type Output = (Primitive, mouse::Interaction);
-    type Defaults = Defaults;
-
-    fn layout<'a, Message>(
-        &mut self,
-        element: &iced_native::Element<'a, Message, Self>,
-        limits: &iced_native::layout::Limits,
-    ) -> iced_native::layout::Node {
-        let node = element.layout(self, limits);
-
-        self.text_pipeline.clear_measurement_cache();
-
-        node
+impl iced_graphics::Backend for Backend {
+    fn trim_measurements(&mut self) {
+        self.text_pipeline.trim_measurement_cache()
     }
 }
 
-impl layout::Debugger for Renderer {
-    fn explain<Message>(
-        &mut self,
-        defaults: &Defaults,
-        widget: &dyn Widget<Message, Self>,
-        layout: Layout<'_>,
-        cursor_position: Point,
-        color: Color,
-    ) -> Self::Output {
-        let mut primitives = Vec::new();
-        let (primitive, cursor) =
-            widget.draw(self, defaults, layout, cursor_position);
+impl backend::Text for Backend {
+    const ICON_FONT: Font = text::BUILTIN_ICONS;
+    const CHECKMARK_ICON: char = text::CHECKMARK_ICON;
 
-        explain_layout(layout, color, &mut primitives);
-        primitives.push(primitive);
-
-        (Primitive::Group { primitives }, cursor)
+    fn measure(
+        &self,
+        contents: &str,
+        size: f32,
+        font: Font,
+        bounds: Size,
+    ) -> (f32, f32) {
+        self.text_pipeline.measure(contents, size, font, bounds)
     }
-}
 
-fn explain_layout(
-    layout: Layout<'_>,
-    color: Color,
-    primitives: &mut Vec<Primitive>,
-) {
-    primitives.push(Primitive::Quad {
-        bounds: layout.bounds(),
-        background: Background::Color(Color::TRANSPARENT),
-        border_radius: 0,
-        border_width: 1,
-        border_color: [0.6, 0.6, 0.6, 0.5].into(),
-    });
-
-    for child in layout.children() {
-        explain_layout(child, color, primitives);
+    fn space_width(&self, size: f32) -> f32 {
+        self.text_pipeline.space_width(size)
     }
 }
